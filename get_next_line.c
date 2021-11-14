@@ -6,95 +6,119 @@
 /*   By: kbarbry <kbarbry@student.42lyon.fr>        +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2021/11/04 16:14:18 by kbarbry           #+#    #+#             */
-/*   Updated: 2021/11/08 17:52:24 by kbarbry          ###   ########.fr       */
+/*   Updated: 2021/11/13 14:08:29 by kbarbry          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "get_next_line.h"
 
-int	ft_strichr(const char *s, int c)
+static char	*ft_calloc(int size)
+{
+	int		i;
+	char	*str;
+
+	i = 0;
+	str = (char *)malloc(sizeof(char) * size);
+	if (!str)
+		return (NULL);
+	while (i < size)
+		str[i++] = '\0';
+	return (str);
+}
+
+static char	*ft_strlcatgnl(char *str1, char *str2)
+{
+	char	*dest;
+	int		i[4];
+
+	i[0] = 0;
+	while (str1 && str1[i[0]])
+		i[0]++;
+	i[1] = 0;
+	while (str2 && str2[i[1]])
+		i[1]++;
+	if (i[0] + i[1] == 0)
+		return (NULL);
+	dest = (char *)ft_calloc(i[0] + i[1] + 1);
+	if (!dest)
+		return (str1);
+	i[2] = 0;
+	while (str1 && str1[i[2]] && i[2]++ >= 0)
+		dest[i[2] - 1] = str1[i[2] - 1];
+	i[3] = 0;
+	while (str2 && str2[i[3]] && i[3]++ >= 0)
+		dest[i[2] + i[3] - 1] = str2[i[3] - 1];
+	dest[i[2] + i[3]] = '\0';
+	free(str1);
+	return (dest);
+}
+
+static int	ft_find_nl(char *str)
 {
 	int	i;
 
 	i = 0;
-	while (s[i] && ((unsigned char)s[i] != (unsigned char)c))
+	if (!str)
+		return (-1);
+	while (str[i] && str[i] != '\n')
 		i++;
-	if ((unsigned char)s[i] == (unsigned char)c)
-		return (i + 1);
-	if (i == 0)
-		return (0);
-	if ((unsigned char)s[i] == '\0')
+	if (str[i] == '\n')
 		return (i);
-	return (i);
+	return (-1);
 }
 
-size_t	ft_strlen(const char *s)
+static char	*ft_read(int fd, char *buff_save, int buff_size, char **line)
 {
-	int	len;
+	char	actual_buff[BUFFER_SIZE + 1];
+	int		pos_nl;
+	int		res;
 
-	len = 0;
-	while (s[len])
-		len++;
-	return (len);
-}
-
-void	*ft_memset(void *s, int c, size_t n)
-{
-	size_t			i;
-	unsigned char	*str;
-
-	i = 0;
-	str = (unsigned char *)s;
-	while (i < n)
+	*line = ft_strlcatgnl(NULL, buff_save);
+	while (ft_find_nl(*line) == -1)
 	{
-		str[i] = c;
-		i++;
+		res = read(fd, actual_buff, buff_size);
+		if (res <= 0)
+		{
+			if (buff_save)
+				free(buff_save);
+			return (NULL);
+		}
+		actual_buff[res] = '\0';
+		*line = ft_strlcatgnl(*line, actual_buff);
 	}
-	return (s);
-}
-
-void	*ft_calloc(size_t elementCount, size_t elementSize)
-{
-	void	*ptr;
-
-	ptr = (void *)malloc(elementCount * elementSize);
-	if (!ptr)
-		return (0);
-	ft_memset(ptr, 0, elementCount * elementSize);
-	return (ptr);
-}
-
-void	ft_free(char *buff, char *line)
-{
-	free(buff);
-	free(line);
+	pos_nl = ft_find_nl(*line);
+	if (buff_save)
+		free(buff_save);
+	buff_save = ft_strlcatgnl(NULL, &(*line)[pos_nl + 1]);
+	(*line)[pos_nl + 1] = '\0';
+	return (buff_save);
 }
 
 char	*get_next_line(int fd)
 {
-	static char	*buff = NULL;
+	char static	*buff_save = NULL;
 	char		*line;
-	int			res;
-	int			i;
 
-	if (!fd || BUFFER_SIZE < 1)
-		return (NULL);
-	if (!buff)
-		buff = (char *)ft_calloc(BUFFER_SIZE + 1, sizeof(char));
-	line = (char *)ft_calloc(1, sizeof(char));
-	while (line[ft_strlen(line) - 1] != '\n')
+	if (!buff_save)
 	{
-		if (buff[0] == '\0')
-		{
-			res = read(fd, buff, BUFFER_SIZE);
-			buff[res] = '\0';
-			if (res == -1)
-				ft_free(buff, line);
-		}
-		i = ft_strichr(buff, '\n');
-		line = ft_realloc(line, ft_strlen(line) + i);
-		ft_strlcat(line, buff, ft_strlen(line) + i + 1);
-		ft_memmove(buff, &buff[i], BUFFER_SIZE);
+		buff_save = (char *)ft_calloc(BUFFER_SIZE + 1);
+		if (!buff_save)
+			return (NULL);
 	}
+	buff_save = ft_read(fd, buff_save, BUFFER_SIZE, &line);
 	return (line);
+}
+
+int	main(void)
+{
+	int	fd;
+	char *line;
+
+	fd = open("bible.txt", O_RDONLY);
+	while (get_next_line(fd))
+	{
+		line = get_next_line(fd);
+		dprintf(1, "%s", line);
+		free(line);
+	}
 }
